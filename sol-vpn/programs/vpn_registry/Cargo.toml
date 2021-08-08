@@ -1,0 +1,18 @@
+[package]
+name = "vpn_registry"
+version = "0.1.0"
+description = "VPN registry"
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "vpn_registry"
+
+[features]
+no-entrypoint = []
+no-idl = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.7.0"

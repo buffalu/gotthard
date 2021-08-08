@@ -1,0 +1,19 @@
+version: 1
+
+formatters:
+  human_readable_context_formatter:
+    (): log.logger.HumanReadableContextFormatter
+    format: "[%(asctime)s.%(msecs)03d] [%(name)20s] [%(levelname)8s] --- %(message)-36s"
+    datefmt: "%H:%M:%S"
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: human_readable_context_formatter
+    stream: ext://sys.stdout
+
+root:
+    level: DEBUG
+    handlers: [console]
+    propogate: yes

@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}FastAPI Starter{% endblock %}
+{% block head %}
+{{ super() }}
+
+{% endblock %}
+
+{% block page_content %}
+
+<main role="main" class="container-sm" id="main">
+    <div class="toast" id="toastProviderRegistration" role="alert" aria-live="assertive" aria-atomic="true"
+         style="position: absolute; top: 0; right: 0;">
+        <div class="toast-header">
+            <strong class="me-auto">Register success</strong>
+            <small>2 seconds ago</small>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            Successful registration as a network provider!
+        </div>
+    </div>
+    <div class="toast" id="toastRegisterServer" role="alert" aria-live="assertive" aria-atomic="true"
+         style="position: absolute; top: 0; right: 0;">
+        <div class="toast-header">
+            <strong class="me-auto">Register success</strong>
+            <small>2 seconds ago</small>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            Successful server registration
+        </div>
+    </div>
+    <h1>System Information</h1>
+    <ul class="list-group">
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            Providers available
+            <span class="badge bg-success rounded-pill" id="providersAvailableCount">-1</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            Servers available
+            <span class="badge bg-success rounded-pill" id="serversAvailableCount">-1</span>
+        </li>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            Balance
+            <span class="badge bg-success rounded-pill" id="myBalance">-1</span>
+        </li>
+    </ul>
+
+    <div class="d-grid gap-2">
+        <button type="button" id="registerButton" class="btn btn-success">Register As Provider</button>
+        <button type="button" id="registerServer" class="btn btn-success">Register Server</button>
+        <button type="button" id="isConnectedButton" class="btn btn-danger" aria-disabled="true" disabled>Not
+            Connected
+        </button>
+        <button type="button" id="locationButton" class="btn btn-secondary" aria-disabled="true" disabled>Location:
+            Unknown
+        </button>
+        <button type="button" id="ipAddressButton" class="btn btn-secondary" aria-disabled="true" disabled>IP Address:
+            Unknown
+        </button>
+    </div>
+    <h1>Servers Available</h1>
+    <div class="accordion" id="accordionExample">
+</main><!-- /.container -->
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+
+<script>
+    // dont be like me, put this shit in a .js file lol
+    // this shit is uber hacky and i wouldn't have it any other way lmao
+
+    function refresh_page() {
+        var providers = 0;
+        var servers = 0;
+        var my_addr = 0;
+
+        $.getJSON("/api/v1/account/balance", function (data) {
+            my_addr = data.address;
+            $('#myBalance').text(data.balance)
+        });
+
+        $.getJSON("/api/v1/vpn_registry/providers", function (data) {
+            providers = data.length;
+
+            $.each(data, function (provider_idx, acc) {
+                servers += acc.info.servers.length;
+            });
+
+            $('#serversAvailableCount').text(servers);
+            $('#providersAvailableCount').text(providers);
+            console.log(`${providers} ${servers}`);
+
+            $('#accordionExample').remove();
+            $('#main').append('<div class="accordion" id="accordionExample">');
+            $.each(data, function (provider_idx, acc) {
+                if (acc.info.servers.length > 0) {
+                    $('#accordionExample').append(`
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading${provider_idx}">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#collapse${provider_idx}" aria-expanded="false" aria-controls="collapse${provider_idx}">
+                    ${acc.info.authority}
+                        </button>
+                    </h2>
+                    <div id="collapse${provider_idx}" class="accordion-collapse collapse" aria-labelledby="heading${provider_idx}"
+                         data-bs-parent="#accordionExample">
+
+                    </div>
+                </div>`);
+
+                    $.each(acc.info.servers, function (server_idx, server) {
+                        $(`#collapse${provider_idx}`).append(`
+                        <div class="accordion-body id=serverBody_${provider_idx}_${server_idx}">
+                            #${server_idx}: (${server.lat.toFixed(2)}, ${server.long.toFixed(2)})
+                            <button class="btn btn-success me-md-2" type="button" id=connect_${provider_idx}_${server_idx}>Connect</button>
+                        </div>
+                    `);
+
+                        $(`#connect_${provider_idx}_${server_idx}`).on('click', function (event) {
+                            const program_id = acc.address;
+                            const uid = server.uid;
+                            const data = JSON.stringify({program_id: program_id, uid: uid});
+                            console.log(`Connecting to server ${data}`);
+                            $.ajax({
+                                type: 'POST',
+                                url: '/api/v1/vpn_registry/connection_request',
+                                data: data,
+                                contentType: "application/json",
+                                success: function (response) {
+                                    console.log(`Got response: ${response.success} ${response.msg}`);
+                                }
+                            });
+
+                        });
+                    });
+                }
+            });
+        })
+
+        $.getJSON("/api/v1/vpn_registry/provider_status", function (data) {
+            if (data.is_provider) {
+                $('#registerButton').addClass('disabled');
+                $('#registerButton').text('Already registered');
+            } else {
+                $('#registerButton').removeClass('disabled');
+                $('#registerButton').text('Register As Provider');
+            }
+        })
+
+        $.getJSON("/api/v1/network/location", function (data) {
+            console.log(data);
+            $('#locationButton').text(`Location: ${data.region_code}, ${data.country_code}`);
+            $('#ipAddressButton').text(`IP Address: ${data.ip}`);
+        });
+
+        $.getJSON("/api/v1/vpn_registry/connection_status", function (data) {
+            console.log(data);
+            if (data.connected) {
+                $('#isConnectedButton').text(`Connected to ${data.connected_to}`);
+                $('#isConnectedButton').removeClass('btn btn-danger').addClass('btn btn-success');
+            } else {
+                $('#isConnectedButton').text(`Not Connected`);
+            }
+        });
+
+        $('#registerButton').on('click', function (event) {
+            $.post("/api/v1/vpn_registry/provider", function (data) {
+                console.log(`Response from adding provider ${data.success}, ${data.account} ${data.tx_id} ${data.msg}`);
+                if (data.success) {
+                    $('#toastProviderRegistration .toast-body').text(`Success registering as provider! Your account is ${data.account}`);
+                    // hack fest
+                    $('#registerButton').addClass('disabled');
+                    $('#registerButton').text('Already registered');
+                } else if (!data.success && data.msg.length) {
+                    $('#toastProviderRegistration .toast-body').text(`Account ${data.account} already registered`);
+                    $('#registerButton').addClass('disabled');
+                    $('#registerButton').text('Already registered');
+                } else {
+                    $('#toastProviderRegistration .toast-body').text(`Failed registering as a provider`);
+                }
+                $('#toastProviderRegistration').toast('show');
+            })
+        });
+
+        $('#registerServer').on('click', function (event) {
+            $.post("/api/v1/vpn_registry/server", function (data) {
+                console.log(`register server ret: ${data.success} ${data.tx_id}`)
+
+                if (!data.success) {
+                    $('#toastRegisterServer .toast-body').text(`Failure registering server, are you setup as a provider?`);
+                } else {
+                    $('#toastRegisterServer .toast-body').text(`Success registering server!`);
+                }
+                $('#toastRegisterServer').toast('show');
+            })
+        });
+    }
+
+    $(document).ready(function () {
+        refresh_page();
+    });
+
+    $('#refreshButton').on('click', function (event) {
+        refresh_page();
+    });
+</script>
+
+{% endblock %}
